@@ -36,21 +36,18 @@ driver = uc.Chrome(headless=True)
 
 def internet_context(user_query): 
     context = {}
-    parsed_urls = []
     search_query_gen_prompt = PromptTemplate.from_template(template=search_prompt)
     formatted_search_query_prompt = search_query_gen_prompt.format(question=user_query)
     search_term = model_flash.generate_content(formatted_search_query_prompt,generation_config={"response_mime_type":"application/json"})
     url_list = list(search(term=json.loads(search_term.text)["search_query"], num_results=4))
-    for url in url_list:
+    for url_index,url in enumerate(url_list):
         driver.get(url)
         parsed_url_text = driver.find_element(By.TAG_NAME,'body').text
         text_splits = text_splitter.split_text(parsed_url_text)
         db = FAISS.from_texts(text_splits, embedding=embedding_model)
-        test = db.similarity_search(user_query,k=2)
-        print(len(text_splits))
-        print(test)
-        #context[f"internet_context_{parsed_urls.index(url) + 1}"] = {"context" : ''.join(map(str,db.similarity_search(user_query,k=2))),"url" : url.metadata['source']}
-    #return context
+        relevant_split = db.similarity_search(user_query,k=2)
+        context[f"internet_context_{url_index + 1}"] = {"context" : ''.join(split.page_content for split in relevant_split),"url" : url}
+    return context
     
 
 def send_message(user_input,_):
